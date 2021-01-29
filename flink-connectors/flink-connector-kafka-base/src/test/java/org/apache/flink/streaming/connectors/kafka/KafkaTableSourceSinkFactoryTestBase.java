@@ -523,24 +523,24 @@ public abstract class KafkaTableSourceSinkFactoryTestBase extends TestLogger {
 		}
 	}
 
-	private static class DataStreamMock extends DataStream<Row> {
+	private static class DataStreamMock<T> extends DataStream<T> {
 
 		public SinkFunction<?> sinkFunction;
 
-		public DataStreamMock(StreamExecutionEnvironment environment, TypeInformation<Row> outType) {
+		public DataStreamMock(StreamExecutionEnvironment environment, TypeInformation<T> outType) {
 			super(environment, new TransformationMock("name", outType, 1));
 		}
 
 		@Override
-		public DataStreamSink<Row> addSink(SinkFunction<Row> sinkFunction) {
+		public DataStreamSink<T> addSink(SinkFunction<T> sinkFunction) {
 			this.sinkFunction = sinkFunction;
 			return super.addSink(sinkFunction);
 		}
 	}
 
-	private static class TransformationMock extends Transformation<Row> {
+	private static class TransformationMock<T> extends Transformation<T> {
 
-		public TransformationMock(String name, TypeInformation<Row> outputType, int parallelism) {
+		public TransformationMock(String name, TypeInformation<T> outputType, int parallelism) {
 			super(name, outputType, parallelism);
 		}
 

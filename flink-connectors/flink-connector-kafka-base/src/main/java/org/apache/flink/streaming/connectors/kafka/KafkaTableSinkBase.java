@@ -21,13 +21,16 @@ package org.apache.flink.streaming.connectors.kafka;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaPartitioner;
+import org.apache.flink.streaming.connectors.kafka.partitioner.HashPartitioner;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.sinks.AppendStreamTableSink;
+import org.apache.flink.table.sinks.RetractStreamTableSink;
 import org.apache.flink.table.utils.TableConnectorUtils;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.types.Row;
@@ -39,16 +42,16 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * A version-agnostic Kafka {@link AppendStreamTableSink}.
+ * A version-agnostic Kafka {@link RetractStreamTableSink}.
  *
  * <p>The version-specific Kafka consumers need to extend this class and
  * override {@link #createKafkaProducer(String, Properties, SerializationSchema, Optional)}}.
  */
 @Internal
-public abstract class KafkaTableSinkBase implements AppendStreamTableSink<Row> {
+public abstract class KafkaTableSinkBase implements RetractStreamTableSink<Row> {
 
 	/** The schema of the table. */
-	private final TableSchema schema;
+	protected final TableSchema schema;
 
 	/** The Kafka topic to write to. */
 	protected final String topic;
@@ -60,7 +63,7 @@ public abstract class KafkaTableSinkBase implements AppendStreamTableSink<Row> {
 	protected final SerializationSchema<Row> serializationSchema;
 
 	/** Partitioner to select Kafka partition for each item. */
-	protected final Optional<FlinkKafkaPartitioner<Row>> partitioner;
+	protected Optional<FlinkKafkaPartitioner<Row>> partitioner;
 
 	protected KafkaTableSinkBase(
 			TableSchema schema,
@@ -91,25 +94,35 @@ public abstract class KafkaTableSinkBase implements AppendStreamTableSink<Row> {
 		Optional<FlinkKafkaPartitioner<Row>> partitioner);
 
 	@Override
-	public DataStreamSink<?> consumeDataStream(DataStream<Row> dataStream) {
+	public DataStreamSink<?> consumeDataStream(DataStream<Tuple2<Boolean, Row>> dataStream) {
+		String hashPartitionColumn = properties.getProperty("hash.partition.column", "");
+		if (!hashPartitionColumn.equals("")) {
+//			Optional<HashPartitioner<Row>> partitioner;
+			partitioner = Optional.of(new HashPartitioner<Row>(hashPartitionColumn));
+		}
 		final SinkFunction<Row> kafkaProducer = createKafkaProducer(
 			topic,
 			properties,
 			serializationSchema,
 			partitioner);
-		return dataStream
+		return dataStream.filter(t -> t.f0).map(t -> t.f1)
 			.addSink(kafkaProducer)
 			.setParallelism(dataStream.getParallelism())
 			.name(TableConnectorUtils.generateRuntimeName(this.getClass(), getFieldNames()));
 	}
 
 	@Override
-	public void emitDataStream(DataStream<Row> dataStream) {
+	public void emitDataStream(DataStream<Tuple2<Boolean, Row>> dataStream) {
 		consumeDataStream(dataStream);
 	}
 
 	@Override
-	public TypeInformation<Row> getOutputType() {
+	public TypeInformation<Tuple2<Boolean, Row>> getOutputType() {
+		return Types.TUPLE(Types.BOOLEAN, schema.toRowType());
+	}
+
+	@Override
+	public TypeInformation<Row> getRecordType() {
 		return schema.toRowType();
 	}
 
@@ -159,3 +172,4 @@ public abstract class KafkaTableSinkBase implements AppendStreamTableSink<Row> {
 			partitioner);
 	}
 }
+

@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.kafka;
 
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.connectors.kafka.config.StartupMode;
 import org.apache.flink.streaming.connectors.kafka.internals.KafkaTopicPartition;
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkFixedPartitioner;
@@ -93,7 +94,7 @@ import static org.apache.flink.table.descriptors.StreamTableDescriptorValidator.
  */
 public abstract class KafkaTableSourceSinkFactoryBase implements
 		StreamTableSourceFactory<Row>,
-		StreamTableSinkFactory<Row> {
+		StreamTableSinkFactory<Tuple2<Boolean, Row>> {
 
 	@Override
 	public Map<String, String> requiredContext() {
@@ -176,7 +177,7 @@ public abstract class KafkaTableSourceSinkFactoryBase implements
 	}
 
 	@Override
-	public StreamTableSink<Row> createStreamTableSink(Map<String, String> properties) {
+	public StreamTableSink<Tuple2<Boolean, Row>> createStreamTableSink(Map<String, String> properties) {
 		final DescriptorProperties descriptorProperties = getValidatedProperties(properties);
 
 		final TableSchema schema = TableSchemaUtils.getPhysicalSchema(
@@ -397,3 +398,4 @@ public abstract class KafkaTableSourceSinkFactoryBase implements
 		private Map<KafkaTopicPartition, Long> specificOffsets;
 	}
 }
+
